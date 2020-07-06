@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <link rel="stylesheet" href="/static/bootstrap/css/bootstrap.css">
+    <script src="/static/js/jquery.js"></script>
+    <script src="/static/js/jquery.cookie.js"></script>
+
+    <script src="/static/datetimepicker/bootstrap-datetimepicker.min.js"></script>
+    <script src="/static/datetimepicker//bootstrap-datetimepicker.zh-CN.js"></script>
+    <style>
+        .active{
+            background-color: papayawhip!important;
+        }
+        .other_active{
+            background:yellowgreen;
+        }
+        .td_active{
+            background-color: blueviolet!important;
+        }
+    </style>
+</head>
+<body>
+    <h3>会议室预定</h3>
+
+<div class="clearfix">
+    <div class="calender pull-right">
+    <div class='input-group' style="width: 230px;">
+        <input type='text' class="form-control" id='datetimepicker11' placeholder="请选择日期"/>
+            <span class="input-group-addon">
+                <span class="glyphicon glyphicon-calendar">
+                </span>
+            </span>
+
+    </div>
+</div>
+</div>
+    <table class="table table-bordered table-striped">
+        <thead>
+            <th>会议室/时间</th>
+            {% for foo in time_choices %}
+                <th>{{foo.1}}</th>
+            {% endfor %}
+
+        </thead>
+        <tbody>
+           {{ htmls|safe }}
+
+        </tbody>
+    </table>
+    <button class="btn btn-danger pull-right keep"  >保存</button>
+<script>
+
+
+
+    //
+    var POST_DATA = {
+        "ADD":{},  // 以room为键time_id 为值 {1:[2,3];2[3,4,5]}
+        'DEL':{},   // {3:[2,9];4:[2,8]}
+    }
+
+    // 为td绑定事件
+     if ("{{ request.user.username }}") {
+         function BindTd() {
+             $('.item').click(function () {
+                 var room_id = $(this).attr('room_id')
+                 var time_id = $(this).attr('time_id')
+                 // 取消当前登录人的已选择的
+                 if ($(this).hasClass('active')) {
+                     // 清空文本值
+                     $(this).removeClass("active").empty().addClass('item cancel')
+                     // 点击临时选择的取消
+                 } else if ($(this).hasClass('td_active')) {
+                     $(this).removeClass('td_active');
+                     // 添加预定 点击什么都没有的 js里面[]数组 .push 添加  .pop 只支持最后一个
+                 }else if($(this).hasClass('other_active')) {
+                     alert("已被占用!")
+                 }
+                 else {
+                     $(this).addClass('td_active')
+
+                 }
+
+
+             })
+
+
+         }
+
+         BindTd()
+
+
+         // 发送ajax
+         // 网络编程之间就是传递字符串
+         $(".keep").click(function () {
+             $(".item.td_active").each(function (index, ele) {
+                if ($(this).hasClass("cancel")) {
+                    return
+                }
+                 var room_id = $(this).attr('room_id')
+                 var time_id = $(this).attr('time_id')
+                 console.log(room_id,time_id)
+                if (POST_DATA.ADD[room_id]) {
+                    POST_DATA.ADD[room_id].push(time_id)
+                } else {
+                    POST_DATA.ADD[room_id] = [time_id]
+                }
+
+
+            });
+            //处理 取消预定 数据
+            $(".cancel.item").each(function (index, ele) {
+                if ($(this).hasClass("td_active")) {
+                    return
+                }
+                var room_id = $(this).attr('room_id')
+                 var time_id = $(this).attr('time_id')
+
+                if (POST_DATA.DEL[room_id]) {
+                    POST_DATA.DEL[room_id].push(time_id)
+                } else {
+                    POST_DATA.DEL[room_id] = [time_id]
+                }
+            });
+             $.ajax({
+                 url: '/book/',
+                 type: 'POST',
+                 content_Type: 'json',  // 如果不指定就是urlencoded a=1&b=2&c=3
+                 // json '{"a":1,"b":2}'
+                 headers: {'X-CSRFToken': $.cookie('csrftoken')},
+                 data: {
+                     post_data: JSON.stringify(POST_DATA),
+                     csrfmiddlewaretoken: $("[name='csrfmiddlewaretoken']").val(),
+                     choose_date: CHOSEN_DATE,
+                 },
+                 success: function (data) {
+                     if(JSON.parse(data).status==1){
+
+                         // 返回当前路由
+                         location.href=location.href
+                     }
+
+                 }
+             })
+         })
+     }else{
+         location.href = "/login/"
+     }
+
+
+
+     // 构建日期类型
+    Date.prototype.Format = function (fmt) { //author: meizz
+        var o = {
+            "M+": this.getMonth() + 1, //月份
+            "d+": this.getDate(), //日
+            "h+": this.getHours(), //小时
+            "m+": this.getMinutes(), //分
+            "s+": this.getSeconds(), //秒
+            "q+": Math.floor((this.getMonth() + 3) / 3), //季度
+            "S": this.getMilliseconds() //毫秒
+        };
+        if (/(y+)/.test(fmt)) fmt = fmt.replace(RegExp.$1, (this.getFullYear() + "").substr(4 - RegExp.$1.length));
+        for (var k in o)
+            if (new RegExp("(" + k + ")").test(fmt)) fmt = fmt.replace(RegExp.$1, (RegExp.$1.length == 1) ? (o[k]) : (("00" + o[k]).substr(("" + o[k]).length)));
+        return fmt;
+    };
+
+    //
+    date = new Date()
+    $('#datetimepicker11').datetimepicker({
+        minView: "month",
+        language: "zh-CN",
+        sideBySide: true,
+        format: 'yyyy-mm-dd',
+        // startDate: new Date(),
+        bootcssVer: 3,
+        autoclose: true,
+        defaultDate: new Date()
+
+    }).on('changeDate', book_query);
+    function book_query(ev) {
+
+        CHOSEN_DATE = ev.date.Format('yyyy-MM-dd');
+        console.log('格式化日期',CHOSEN_DATE)
+        location.href = "/index/?book_date=" + CHOSEN_DATE
+
+    }
+
+     $('#datetimepicker11').attr('value',date.getFullYear() + '-' + (date.getMonth() + 1) + '-' + date.getDate())
+     if (location.search.slice(11)) {
+                CHOSEN_DATE = location.search.slice(11)
+                console.log(CHOSEN_DATE)
+                 $('#datetimepicker11').attr('value',CHOSEN_DATE)
+
+            }
+            else {
+                CHOSEN_DATE = new Date().Format('yyyy-MM-dd');
+            }
+</script>
+
+
+</body>
+</html>
